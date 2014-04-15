@@ -1,0 +1,102 @@
+#!/usr/bin/env ruby
+
+class NotmuchRsync
+  def initialize(local_directory, remote_host, remote_directory)
+    @local_directory, @remote_host, @remote_directory = local_directory, remote_host, remote_directory
+  end
+
+  def sync
+    search_local
+    search_remote
+    push_only_local
+    pull_only_remote
+  end
+
+  private
+
+  attr_reader :local_directory, :remote_host, :remote_directory, :local, :remote
+
+  def search_local
+    run(%W[notmuch new])
+    @local = run(search)
+    puts "Number of local mails: #{local.size}"
+  end
+
+  def search_remote
+    run(ssh(%W[notmuch new]))
+    @remote = run(ssh(search))
+    puts "Number of remote mails: #{remote.size}"
+  end
+
+  def only_local
+    local - remote
+  end
+
+  def only_remote
+    remote - local
+  end
+
+  def push_only_local
+    puts "Only local: #{only_local.size}"
+
+    only_local.each_slice(100) do |ids|
+      files = run(paths(ids))
+      if files.any?
+        run(%W[rsync -v -z].concat(files << "#{remote_host}:#{remote_directory}"))
+      end
+    end
+  end
+
+  def pull_only_remote
+    puts "Only remote: #{only_remote.size}"
+
+    only_remote.each_slice(100) do |ids|
+      files = run(ssh(paths(ids).map{ |id| "'#{id}'" }))
+      if files.any?
+        run(%W[rsync -v -z].concat(files.map {|f| "#{remote_host}:#{f}" } << local_directory))
+      end
+    end
+
+    run(%w[notmuch new])
+  end
+
+  def search
+    %W[notmuch search --exclude=false --sort=newest-first --output=messages #{time_range}]
+  end
+
+  def paths(ids)
+    %W[notmuch search --exclude=false --output=files].concat(ids)
+  end
+
+  def time_range
+    @time_range ||= "#{since.to_i}..#{Time.now.to_i}"
+  end
+
+  def since
+    Time.now - 31 * 24 * 60 * 60
+  end
+
+  def ssh(command)
+    %W[ssh tils.net -C] << escape(command)
+  end
+
+  def escape(command)
+    command.join(' ').gsub('*', '\*')
+  end
+
+  def run(command)
+    puts "Running: #{command.join(' ')}"
+    IO.popen(command, err: [:child, :out]) { |io| io.read }.split("\n")
+  end
+end
+
+if ARGV.size != 3
+  abort <<-EOF
+Usage: notmuch-rsync <local-directory> <remote-host> <remote-directory>
+
+E.g.
+notmuch-rsync /home/foo/Maildir/cur example.com /path/to/remote/foo/Maildir/cur
+  EOF
+end
+
+NotmuchRsync.new(*ARGV).sync
