@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+require 'open3'
 
 class NotmuchRsync
   def initialize(local_directory, remote_host, remote_directory)
@@ -86,7 +87,9 @@ class NotmuchRsync
 
   def run(command)
     puts "Running: #{command.join(' ')}"
-    IO.popen(command, err: [:child, :out]) { |io| io.read }.split("\n")
+    out, status = Open3.capture2(*command)
+    fail("Command #{command} failed: #{status}") unless status.success?
+    out.split("\n")
   end
 end
 
