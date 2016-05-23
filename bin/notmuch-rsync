@@ -78,7 +78,7 @@ class NotmuchRsync
   end
 
   def ssh(command)
-    %W[ssh tils.net -C] << escape(command)
+    %W[ssh #{remote_host} -C] << escape(command)
   end
 
   def escape(command)
