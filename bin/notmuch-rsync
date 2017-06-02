@@ -87,9 +87,13 @@ class NotmuchRsync
 
   def run(command)
     puts "Running: #{command.join(' ')}"
+    before = Time.now.to_f
     out, status = Open3.capture2(*command)
     fail("Command #{command} failed: #{status}") unless status.success?
     out.split("\n")
+  ensure
+    puts "(#{((Time.now.to_f - before) * 1000).round}ms)"
+    puts
   end
 end
 
