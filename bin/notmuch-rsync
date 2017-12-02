@@ -20,13 +20,13 @@ class NotmuchRsync
   def search_local
     run(%W[notmuch new])
     @local = run(search)
-    puts "Number of local mails: #{local.size}"
+    log "Number of local mails: #{local.size}"
   end
 
   def search_remote
     run(ssh(%W[notmuch new]))
     @remote = run(ssh(search))
-    puts "Number of remote mails: #{remote.size}"
+    log "Number of remote mails: #{remote.size}"
   end
 
   def only_local
@@ -38,7 +38,7 @@ class NotmuchRsync
   end
 
   def push_only_local
-    puts "Only local: #{only_local.size}"
+    log "Only local: #{only_local.size}"
 
     only_local.each_slice(100) do |ids|
       files = run(paths(ids))
@@ -49,7 +49,7 @@ class NotmuchRsync
   end
 
   def pull_only_remote
-    puts "Only remote: #{only_remote.size}"
+    log "Only remote: #{only_remote.size}"
 
     only_remote.each_slice(100) do |ids|
       files = run(ssh(paths(ids).map{ |id| "'#{id}'" }))
@@ -86,14 +86,20 @@ class NotmuchRsync
   end
 
   def run(command)
-    puts "Running: #{command.join(' ')}"
+    log "Running: #{command.join(' ')}"
     before = Time.now.to_f
     out, status = Open3.capture2(*command)
     fail("Command #{command} failed: #{status}") unless status.success?
     out.split("\n")
   ensure
-    puts "(#{((Time.now.to_f - before) * 1000).round}ms)"
-    puts
+    log "(#{((Time.now.to_f - before) * 1000).round}ms)"
+    log
+  end
+
+  def log(message = nil)
+    # I actually don't know how to set $VERBOSE, so this effectively
+    # disabels all output
+    puts message if $VERBOSE
   end
 end
 
