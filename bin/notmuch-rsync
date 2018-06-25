@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 require 'open3'
+require 'pathname'
 
 class NotmuchRsync
   def initialize(local_directory, remote_host, remote_directory)
@@ -7,6 +8,7 @@ class NotmuchRsync
   end
 
   def sync
+    move_local
     search_local
     search_remote
     push_only_local
@@ -16,6 +18,10 @@ class NotmuchRsync
   private
 
   attr_reader :local_directory, :remote_host, :remote_directory, :local, :remote
+
+  def local_target
+    Pathname(local_directory).join('cur')
+  end
 
   def search_local
     run(%W[notmuch new])
@@ -37,6 +43,13 @@ class NotmuchRsync
     remote - local
   end
 
+  def move_local
+    Pathname(local_directory).join('new').children.each do |f|
+      # Rename as seen according to Maildir standard
+      f.rename Pathname(local_directory).join('cur', "#{f.basename}:2S")
+    end
+  end
+
   def push_only_local
     log "Only local: #{only_local.size}"
 
@@ -54,7 +67,7 @@ class NotmuchRsync
     only_remote.each_slice(100) do |ids|
       files = run(ssh(paths(ids).map{ |id| "'#{id}'" }))
       if files.any?
-        run(%W[rsync -v -z].concat(files.map {|f| "#{remote_host}:#{f}" } << local_directory))
+        run(%W[rsync -v -z].concat(files.map {|f| "#{remote_host}:#{f}" } << local_target.to_s))
       end
     end
 
@@ -98,8 +111,8 @@ class NotmuchRsync
 
   def log(message = nil)
     # I actually don't know how to set $VERBOSE, so this effectively
-    # disabels all output
-    puts message if $VERBOSE
+    # disables all output
+    puts message # if $VERBOSE
   end
 end
 
@@ -108,7 +121,7 @@ if ARGV.size != 3
 Usage: notmuch-rsync <local-directory> <remote-host> <remote-directory>
 
 E.g.
-notmuch-rsync /home/foo/Maildir/cur example.com /path/to/remote/foo/Maildir/cur
+notmuch-rsync /home/foo/Maildir example.com /path/to/remote/foo/Maildir
   EOF
 end
 
