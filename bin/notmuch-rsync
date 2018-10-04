@@ -24,7 +24,7 @@ class NotmuchRsync
   end
 
   def search_local
-    run(%W[notmuch new])
+    run(%W[notmuch new --no-hooks])
     @local = run(search)
     log "Number of local mails: #{local.size}"
   end
@@ -71,7 +71,7 @@ class NotmuchRsync
       end
     end
 
-    run(%w[notmuch new])
+    run(%w[notmuch new --no-hooks])
   end
 
   def search
